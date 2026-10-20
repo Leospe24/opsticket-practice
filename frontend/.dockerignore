@@ -1,8 +1,38 @@
+# Dependencies (installed fresh inside Stage 1 via npm ci)
 node_modules
-npm-debug.log
-Dockerfile
-.dockerignore
-.env
-.env.local
-.env.*.local
+npm-debug.log*
+
+# Build output (generated fresh inside Stage 1 via npm run build)
 dist
+build
+
+# Environment & Secrets
+.env
+.env.*
+
+# Unit Tests & Test Config (not needed for production vite build)
+src/**/*.test.js
+src/**/*.test.jsx
+src/test-setup.js
+vitest.config.js
+coverage
+
+# Docker files (nginx.conf IS needed by COPY, so do NOT ignore nginx.conf)
+Dockerfile*
+.dockerignore
+
+# Logs, scan reports & temporary files
+logs
+*.log
+trivy*.txt
+.tmp
+tmp
+
+# Git, OS & IDE files
+.git
+.gitignore
+.DS_Store
+Thumbs.db
+.vscode
+.idea
+*.md

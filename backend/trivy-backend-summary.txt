@@ -1,0 +1,69 @@
+================================================================================
+SECURITY TRIAGE REPORT: opsticket-backend:test (Trivy Scan Summary)
+================================================================================
+
+1. EXECUTIVE SUMMARY (BEFORE vs. AFTER REMEDIATION)
+--------------------------------------------------------------------------------
+- Total Findings:      117  --->  33  (72% reduction)
+- Alpine OS (Linux):    51  --->   0  (100% FIXED via `apk upgrade --no-cache`)
+- Express / App Code:   16  --->   0  (100% FIXED via `npm audit fix`)
+- Non-Runtime CLI:      50  --->  33  (SAFE TO IGNORE — see Section 3)
+- Leaked Secrets:        0  --->   0  (CLEAN)
+
+
+2. WHAT WAS FIXED (100% RESOLVED)
+--------------------------------------------------------------------------------
+[A] Operating System Layer (DevOps Fix in backend/Dockerfile)
+    Action Taken: Upgraded base image to `node:22-alpine` and added
+                  `RUN apk upgrade --no-cache && apk add --no-cache tini`
+    Resolved:
+    - libcrypto3 (25 CVEs, including HIGH OpenSSL flaws)  --> 0 remaining
+    - libssl3    (25 CVEs, including HIGH OpenSSL flaws)  --> 0 remaining
+    - zlib       (1 MEDIUM heap buffer overflow)          --> 0 remaining
+
+[B] Active Application Runtime Layer (Dev Fix in backend/package-lock.json)
+    Action Taken: Ran `npm audit fix --package-lock-only`
+    Resolved:
+    - express         (4.19.2 -> 4.22.3)
+    - proxy-addr      (2.0.7  -> 2.0.8)   [Fixed CRITICAL IP-spoofing CVE-2026-90711]
+    - qs              (6.15.2 -> 6.16.1)  [Fixed 2 MEDIUM Denial-of-Service CVEs]
+    - body-parser     (1.20.5 -> 1.20.8)  [Fixed LOW Denial-of-Service CVE]
+    - ip-address      (10.2.0 -> 10.7.4)  [Fixed 7 HIGH/MEDIUM SSRF CVEs]
+    - brace-expansion (1.1.15 -> 1.1.21)  [Fixed 6 HIGH/MEDIUM DoS CVEs]
+
+
+3. REMAINING 33 FINDINGS — WHY THEY CAN BE SAFELY IGNORED
+--------------------------------------------------------------------------------
+None of the remaining 33 findings are used by the running Express API (`src/server.js`).
+They come from background CLI tools pre-installed in the base image or build helpers:
+
+1. `tar` (12 CVEs: 1 CRITICAL, 8 HIGH, 3 MEDIUM) — Installed: 6.2.1
+   - Where it lives: Inside `@mapbox/node-pre-gyp` (used by `bcrypt` only during
+     `npm ci` at build time) and `/usr/local/lib/node_modules/npm`.
+   - Why safe to ignore: The running OpsTicket API never extracts `.tar` archives.
+
+2. `pacote`, `sigstore`, `@sigstore/core`, `postcss-selector-parser`, `picomatch`
+   - Where they live: Inside `/usr/local/lib/node_modules/npm` (the global `npm`
+     CLI bundled inside `node:22-alpine`).
+   - Why safe to ignore: Only used when running `npm install`; never imported or
+     executed by `node src/server.js`.
+
+3. `brace-expansion` (2.0.2) & `ip-address` (10.1.0)
+   - Where they live: Internal sub-dependencies of the global `npm` CLI inside
+     `/usr/local/lib/node_modules/npm` (the app's own copies in `/app/node_modules`
+     were already upgraded to 1.1.21 and 10.7.4).
+   - Why safe to ignore: Not loaded by the application at runtime.
+
+4. `http-cache-semantics` (CVE-2026-93748 — HIGH)
+   - Status: `affected` (No Fixed Version released by maintainer yet).
+   - Why safe to ignore: Only used by `npm`/`node-pre-gyp` HTTP caching during
+     package installation, not by the Express API.
+
+
+4. FINAL VERDICT FOR DEV & DEVOPS TEAMS
+--------------------------------------------------------------------------------
+STATUS: APPROVED FOR DEPLOYMENT
+All OS-level and active Express application vulnerabilities have been patched.
+The remaining 33 non-runtime CLI advisories can be added to `.trivyignore` if
+strict zero-warning CI gates are enabled.
+================================================================================

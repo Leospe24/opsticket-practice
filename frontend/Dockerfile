@@ -1,43 +1,28 @@
-# Stage 1: Build the React application
-FROM node:18-alpine AS builder
+# STAGE 1
+# Base Image
+FROM node:22-alpine AS builder
 
-ARG VITE_API_URL
-ENV VITE_API_URL=${VITE_API_URL}
-
+# Workspace
 WORKDIR /app
 
-# Copy package files for layer caching
+# Copy dependency
 COPY package*.json ./
 
-# Install dependencies
+# Install
 RUN npm ci
 
-# Copy source code
+# Copy source files
 COPY . .
 
-# Build production assets
 RUN npm run build
 
-# Stage 2: Serve with Nginx
-FROM nginx:1.25-alpine
+# STAGE 2
+FROM nginxinc/nginx-unprivileged:1.27-alpine
 
-# Copy custom nginx config if present
-# COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-# Copy built assets from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy a simple nginx config to handle SPA routing
-RUN echo 'server { \
-    listen 80; \
-    server_name localhost; \
-    root /usr/share/nginx/html; \
-    index index.html; \
-    location / { \
-        try_files $uri $uri/ /index.html; \
-    } \
-}' > /etc/nginx/conf.d/default.conf
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-EXPOSE 80
+EXPOSE 8080
 
 CMD ["nginx", "-g", "daemon off;"]

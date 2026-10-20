@@ -1,9 +1,31 @@
+# Dependencies (installed fresh inside the container via npm ci)
 node_modules
-npm-debug.log
-Dockerfile
-.dockerignore
-.coverage
+npm-debug.log*
+
+# Environment & Secrets (injected at runtime, never baked into the image)
 .env
-.env.local
-.env.*.local
-dist
+.env.*
+
+# Tests & Coverage (detected from backend/tests/ and package.json jest config)
+tests
+coverage
+
+# Docker files (avoid invalidating cache when editing Dockerfile)
+Dockerfile*
+.dockerignore
+
+# Logs, scan reports & temporary files
+logs
+*.log
+trivy*.txt
+.tmp
+tmp
+
+# Git, OS & IDE files
+.git
+.gitignore
+.DS_Store
+Thumbs.db
+.vscode
+.idea
+*.md

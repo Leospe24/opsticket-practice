@@ -1,0 +1,36 @@
+# =============================================================================
+# Stage 1: Build React SPA Static Assets (Environment-Agnostic: Build Once!)
+# =============================================================================
+FROM node:22-alpine AS builder
+
+WORKDIR /app
+
+# 1. Install Dependencies (Cached Layer)
+COPY package*.json ./
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
+
+# 2. Copy Source & Compile Production Bundle (Uses relative /api path)
+COPY . .
+RUN npm run build
+
+# =============================================================================
+# Stage 2: Serve Static Assets & Proxy /api with Unprivileged Nginx
+# =============================================================================
+FROM nginxinc/nginx-unprivileged:1.27-alpine
+
+# 1. Apply Alpine OS Security Updates (requires root UID 0 briefly, then drop back)
+USER 0:0
+# hadolint ignore=DL3018
+RUN apk upgrade --no-cache
+
+# 2. Copy Built Assets & SPA/Reverse-Proxy Config (UID/GID 101 = nginx)
+COPY --chown=101:101 --from=builder /app/dist /usr/share/nginx/html
+COPY --chown=101:101 nginx.conf /etc/nginx/conf.d/default.conf
+
+# 3. Runtime Execution & Healthcheck as Non-Root User
+USER 101:101
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD ["wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/"]
+CMD ["nginx", "-g", "daemon off;"]

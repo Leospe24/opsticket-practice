@@ -1,0 +1,25 @@
+================================================================================
+TRIVY SECURITY SCAN SUMMARY — opsticket-frontend:test
+================================================================================
+
+Target: opsticket-frontend:test (nginxinc/nginx-unprivileged:1.27-alpine / Alpine 3.21.3)
+Total OS Packages Scanned: 68
+Total Language-Specific (npm) Packages in Final Image: 0
+
+Report Summary:
+┌─────────────────────────────────────────┬────────┬─────────────────┬─────────┐
+│                 Target                  │  Type  │ Vulnerabilities │ Secrets │
+├─────────────────────────────────────────┼────────┼─────────────────┼─────────┤
+│ opsticket-frontend:test (alpine 3.21.3) │ alpine │        0        │    0    │
+└─────────────────────────────────────────┴────────┴─────────────────┴─────────┘
+
+Why `trivy image --table-mode detailed` produced 0 bytes originally:
+1. Multi-Stage Build Power: Stage 1 (`node:22-alpine AS builder`) compiled the React
+   app into pure static `.html`, `.css`, and `.js` files in `/app/dist`. Every single
+   `node_modules` package and the `npm` CLI itself were completely discarded after
+   Stage 1 (`Number of language-specific files: num=0`).
+2. OS Hardening (`RUN apk upgrade --no-cache`): Stage 2 patched all 68 Alpine 3.21.3
+   system packages to their latest fixed versions (`Vulnerabilities: 0`).
+3. Because `--table-mode detailed` only prints rows for detected vulnerabilities,
+   an image with 0 OS CVEs and 0 language CVEs outputs 0 lines to stdout!
+================================================================================

@@ -1,0 +1,29 @@
+# =============================================================================
+# Production Dockerfile — OpsTicket Backend API
+# =============================================================================
+FROM node:22-alpine
+
+# 1. OS Security Updates & PID 1 Init System
+# hadolint ignore=DL3018
+RUN apk upgrade --no-cache && \
+    apk add --no-cache tini
+
+# 2. Environment & Working Directory
+ENV NODE_ENV=production
+WORKDIR /app
+
+# 3. Dependencies (Cached Layer)
+COPY package*.json ./
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --omit=dev
+
+# 4. Application Source & Non-Root Privileges (UID/GID 1000 = node)
+COPY --chown=1000:1000 . .
+USER 1000:1000
+
+# 5. Runtime Execution & Healthcheck
+EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD ["wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["sh", "-c", "npm run migrate && exec node src/server.js"]
