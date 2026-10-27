@@ -1,0 +1,42 @@
+# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
+
+name: CI Pipeline
+
+# Concept 1: The Trigger (When does this run?)
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+# Concept 2: First Job (Frontend)
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+
+    # Tell all commands in this job to run inside the ./frontend folder
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      # Step 1: Download the repo code into the empty ubuntu machine
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Install Node.js 22 (and cache npm so future runs are fast)
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+          cache-dependencies: frontend/package-lock.json
+
+      # Step 3: Run commands inside ./frontend
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test
+      - name: Build production bundle
+        run: npm run build
