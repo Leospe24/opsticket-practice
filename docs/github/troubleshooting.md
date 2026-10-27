@@ -41,3 +41,23 @@ This document records every issue, error, and configuration fix encountered duri
   After the first workflow run registered the `frontend` job name with GitHub, updated **Settings → Branches → Branch protection rule for `main`**:
   1. Checked **☑ Require status checks to pass before merging** and added `frontend` to the required checks list.
   2. Checked **☑ Require branches to be up to date before merging** so PRs must be tested against the latest `main` code before merging.
+
+---
+
+## Issue #03 — Frontend Unit Test (`src/api.test.js`) Fails in CI (`Failed to parse URL from /api/tickets/stats`)
+* **Stage:** `.github/workflows/ci.yml` (`frontend` job — `Run unit tests` / `npm test`)
+* **Symptoms:**
+  1. GitHub Branch Protection successfully **blocked** the Merge button when `npm test` failed.
+  2. `vitest` reported 1 failing test in `frontend/src/api.test.js:20:5`:
+     ```text
+     FAIL  src/api.test.js > API Client > handles network errors gracefully
+     AssertionError: expected [Function] to throw error including 'Unable to connect to the API server' but got 'Failed to parse URL from /api/tickets…'
+     - Expected: Unable to connect to the API server
+     + Received: Failed to parse URL from /api/tickets/stats
+     ```
+* **Root Cause:**
+  1. In `frontend/src/api.js`, the `try / catch` block that translates `TypeError` network errors into `'Unable to connect to the API server. Please check your network connection.'` was placed inside `handleResponse(response)` instead of wrapping the `await fetch(...)` call itself.
+  2. When `await fetch('/api/tickets/stats')` threw a `TypeError` during the test (because no server or browser host exists in the Node.js test runner), `fetch()` crashed **before** `handleResponse()` was ever called.
+* **Fix:**
+  Added a `request(url, options)` wrapper in `frontend/src/api.js` that wraps `await fetch(url, options)` inside the `try / catch (err)` block so any `TypeError` thrown by `fetch` is caught and converted into the expected user-friendly error message.
+
