@@ -25,18 +25,23 @@ function buildHeaders(contentType = true) {
 }
 
 async function handleResponse(response) {
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const errorMessage = data.error || `Request failed with status ${response.status}`;
+    const error = new Error(errorMessage);
+    error.status = response.status;
+    error.data = data;
+    throw error;
+  }
+  return data;
+}
+
+async function request(url, options) {
   try {
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const errorMessage = data.error || `Request failed with status ${response.status}`;
-      const error = new Error(errorMessage);
-      error.status = response.status;
-      error.data = data;
-      throw error;
-    }
-    return data;
+    const res = await fetch(url, options);
+    return await handleResponse(res);
   } catch (err) {
-    if (err instanceof TypeError && err.message.includes('fetch')) {
+    if (err instanceof TypeError) {
       const error = new Error('Unable to connect to the API server. Please check your network connection.');
       error.status = 0;
       throw error;
@@ -48,21 +53,19 @@ async function handleResponse(response) {
 export const api = {
   // Auth
   async register({ email, password, role = 'user' }) {
-    const res = await fetch(`${API_URL}/api/auth/register`, {
+    return request(`${API_URL}/api/auth/register`, {
       method: 'POST',
       headers: buildHeaders(),
       body: JSON.stringify({ email, password, role }),
     });
-    return handleResponse(res);
   },
 
   async login({ email, password }) {
-    const res = await fetch(`${API_URL}/api/auth/login`, {
+    const data = await request(`${API_URL}/api/auth/login`, {
       method: 'POST',
       headers: buildHeaders(),
       body: JSON.stringify({ email, password }),
     });
-    const data = await handleResponse(res);
     if (data.token) {
       setToken(data.token);
     }
@@ -83,34 +86,30 @@ export const api = {
   async getTickets(params = {}) {
     const query = new URLSearchParams(params).toString();
     const url = query ? `${API_URL}/api/tickets?${query}` : `${API_URL}/api/tickets`;
-    const res = await fetch(url, {
+    return request(url, {
       headers: buildHeaders(false),
     });
-    return handleResponse(res);
   },
 
   async createTicket(ticket) {
-    const res = await fetch(`${API_URL}/api/tickets`, {
+    return request(`${API_URL}/api/tickets`, {
       method: 'POST',
       headers: buildHeaders(),
       body: JSON.stringify(ticket),
     });
-    return handleResponse(res);
   },
 
   async updateTicket(id, updates) {
-    const res = await fetch(`${API_URL}/api/tickets/${id}`, {
+    return request(`${API_URL}/api/tickets/${id}`, {
       method: 'PUT',
       headers: buildHeaders(),
       body: JSON.stringify(updates),
     });
-    return handleResponse(res);
   },
 
   async getStats() {
-    const res = await fetch(`${API_URL}/api/tickets/stats`, {
+    return request(`${API_URL}/api/tickets/stats`, {
       headers: buildHeaders(false),
     });
-    return handleResponse(res);
   },
 };
