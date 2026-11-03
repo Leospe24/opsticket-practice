@@ -85,4 +85,5 @@ jobs:
           DB_PASSWORD: postgres
           DB_NAME_TEST: opsticket_test
           JWT_SECRET: super-secret-test-jwt-key
+          FRONTEND_URL: http://localhost:5173
         run: npm test
