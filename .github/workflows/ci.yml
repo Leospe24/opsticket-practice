@@ -87,3 +87,40 @@ jobs:
           JWT_SECRET: super-secret-test-jwt-key
           FRONTEND_URL: http://localhost:5173
         run: npm test
+
+  docker:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Lint Backend Docker
+        run: docker run --rm -i hadolint/hadolint < ./backend/Dockerfile
+
+      - name: Lint Frontend Dockerfile
+        run: docker run --rm -i hadolint/hadolint < ./frontend/Dockerfile
+
+      - name: Build Backend Docker Image
+        run: docker build -t opsticket-backend:ci ./backend
+
+      - name: Build Frontend Docker Image
+        run: docker build -t opsticket-frontend:ci ./frontend
+
+      - name: Trivy Scan Backend Image
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest image \
+            --severity CRITICAL \
+            --exit-code 1 \
+            opsticket-backend:ci
+
+      - name: Trivy Scan Frontend Image
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest image \
+            --severity CRITICAL \
+            --exit-code 1 \
+            opsticket-frontend:ci
