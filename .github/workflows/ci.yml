@@ -130,3 +130,30 @@ jobs:
             --severity CRITICAL \
             --exit-code 1 \
             opsticket-frontend:ci
+
+  terraform:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Check Terraform Formatting
+        run: terraform fmt -check
+
+      - name: Initialize Terraform (No AWS Backend Needed)
+        run: terraform init -backend=false
+
+      - name: Validate Terraform Configuration
+        run: terraform validate
+
+      - name: Trivy IAC Config Scan
+        run: |
+          docker run --rm \
+            -v $(pwd):/terraform \
+            aquasec/trivy:latest config \
+            --exit-code 1 \
+            /terraform
