@@ -22,11 +22,38 @@ resource "aws_instance" "web" {
                 dnf install -y docker
                 systemctl enable --now docker
 
+                # Create private internet Docker network 
+                docker network create opsticket-net
+
                 # Log in to private ECR using EC2 IAM Role badge
                 aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${aws_ecr_repository.frontend.repository_url}
 
-                # Pull and run the frontend container 
-                docker run -d --name frontend --restart unless-stopped -p 80:8080 ${aws_ecr_repository.frontend.repository_url}:v1
+                # 1. Start Database container (PostgreSQL)
+                docker run -d --name database --network opsticket-net --restart unless-stopped \
+                    -e POSTGRES_USER=opsticket \
+                    -e POSTGRES_PASSWORD=opsticket \
+                    -e POSTGRES_DB=opsticket \
+                    postgres:16-alpine
+
+                # Wait 10 seconds for the database to initialize
+                sleep 10
+
+                # 2. Start Backend container (Runs migrations automatically on startup)
+                docker run -d --name backend --network opsticket-net --restart unless-stopped \
+                    -e PORT=3000 \
+                    -e DB_HOST=database \
+                    -e DB_PORT=5432 \
+                    -e DB_USER=opsticket \
+                    -e DB_PASSWORD=opsticket \
+                    -e DB_NAME=opsticket \
+                    -e JWT_SECRET=production-lab-jwt-secret-key \
+                    -e FRONTEND_URL=http://localhost \
+                    ${aws_ecr_repository.backend.repository_url}:v1
+
+                # 3. Start Frontend container (Nginx on port 80 -> proxies /api/ to backend:3000)
+                docker run -d --name frontend --network opsticket-net --restart unless-stopped \
+                    -p 80:8080 \
+                    ${aws_ecr_repository.frontend.repository_url}:v1
                 EOF
 
   tags = {
