@@ -19,9 +19,14 @@ RUN npm run build
 # STAGE 2
 FROM nginxinc/nginx-unprivileged:1.27-alpine
 
+USER 0:0
+RUN apk upgrade --no-cache
+
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+USER 101:101
 
 EXPOSE 8080
 

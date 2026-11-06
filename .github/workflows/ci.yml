@@ -87,3 +87,77 @@ jobs:
           JWT_SECRET: super-secret-test-jwt-key
           FRONTEND_URL: http://localhost:5173
         run: npm test
+
+  docker:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Lint Backend Docker
+        run: docker run --rm -i hadolint/hadolint < ./backend/Dockerfile
+
+      - name: Lint Frontend Dockerfile
+        run: docker run --rm -i hadolint/hadolint < ./frontend/Dockerfile
+
+      - name: Build Backend Docker Image
+        run: docker build -t opsticket-backend:ci ./backend
+
+      - name: Build Frontend Docker Image
+        run: docker build -t opsticket-frontend:ci ./frontend
+
+      - name: Trivy Scan Backend Image
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v $(pwd)/.trivyignore:/.trivyignore \
+            aquasec/trivy:latest image \
+            --table-mode detailed \
+            --ignorefile /.trivyignore \
+            --severity CRITICAL \
+            --exit-code 1 \
+            opsticket-backend:ci
+
+      - name: Trivy Scan Frontend Image
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v $(pwd)/.trivyignore:/.trivyignore \
+            aquasec/trivy:latest image \
+            --table-mode detailed \
+            --ignorefile /.trivyignore \
+            --severity CRITICAL \
+            --exit-code 1 \
+            opsticket-frontend:ci
+
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./terraform
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Check Terraform Formatting
+        run: terraform fmt -check
+
+      - name: Initialize Terraform (No AWS Backend Needed)
+        run: terraform init -backend=false
+
+      - name: Validate Terraform Configuration
+        run: terraform validate
+
+      - name: Trivy IAC Config Scan
+        run: |
+          docker run --rm \
+            -v $(pwd):/terraform \
+            aquasec/trivy:latest config \
+            --severity CRITICAL \
+            --exit-code 1 \
+            /terraform
