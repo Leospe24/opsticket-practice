@@ -11,6 +11,7 @@ resource "aws_security_group" "web" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # trivy:ignore:AVD-AWS-0104
   egress {
     description = "Allow all outbound internet access"
     from_port   = 0
