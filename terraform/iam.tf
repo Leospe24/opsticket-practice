@@ -1,5 +1,5 @@
-resource "aws_iam_role" "apprunner_ecr_role" {
-  name = "opsticket-apprunner-ecr-role"
+resource "aws_iam_role" "ec2_ecr_role" {
+  name = "opsticket-ec2-ecr-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -7,7 +7,7 @@ resource "aws_iam_role" "apprunner_ecr_role" {
       {
         Effect = "Allow"
         Principal = {
-          Service = "build.apprunner.amazonaws.com"
+          Service = "ec2.amazonaws.com"
         }
         Action = "sts:AssumeRole"
       }
@@ -15,11 +15,12 @@ resource "aws_iam_role" "apprunner_ecr_role" {
   })
 }
 
-resource "aws_iam_role_policy_attachment" "apprunner_ecr_policy" {
-  role       = aws_iam_role.apprunner_ecr_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess"
+resource "aws_iam_role_policy_attachment" "ec2_ecr_policy" {
+  role       = aws_iam_role.ec2_ecr_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
 
-output "apprunner_ecr_policy_arn" {
-  value = aws_iam_role.apprunner_ecr_role.arn
+resource "aws_iam_instance_profile" "ec2_ecr_profile" {
+  name = "opsticket-ec2-ecr-profile"
+  role = aws_iam_role.ec2_ecr_role.name
 }
