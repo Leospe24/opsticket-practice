@@ -35,6 +35,8 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
 
       # Initialize Terraform
       - name: Terraform Init
@@ -72,7 +74,10 @@ jobs:
       - name: Phase 3 - Terraform Apply Full Infrastructure
         if: inputs.action == 'apply'
         working-directory: ./terraform
-        run: terraform apply -auto-approve
+        run: |
+          terraform apply -auto-approve
+          echo "### 🚀 OpsTicket Live Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "🌐 **Live Website URL:** $(terraform output -raw website_url)" >> $GITHUB_STEP_SUMMARY
 
       # CHOICE 3: Runs when you select "destroy"
       - name: Terraform Destroy Infrastructure

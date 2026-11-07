@@ -134,3 +134,45 @@ This document records every issue, error, and configuration fix encountered duri
   2. `--severity CRITICAL` was omitted from the `trivy config` command, causing Trivy to fail on `HIGH` and `LOW` warnings (including `AWS-0033`, which requires a paid KMS key).
 * **Fix:**
   Added `defaults.run.working-directory: ./terraform` to the `terraform` job and `--severity CRITICAL` to the `trivy config` step in [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml).
+
+---
+
+## Issue #07 — `oidc.tf` Resource Name Mismatch (`github_actions_role` vs `github_actions`), Audience Typo (`:aub` vs `:aud`), and `secrets.AES_ROLE_ARN`
+* **Stage:** Day 4 CD Setup (`terraform-bootstrap/oidc.tf` & `.github/workflows/deploy.yml`)
+* **Symptoms & Catches:**
+  1. **Resource Reference Mismatch (Caught by `terraform validate`):** Declared `resource "aws_iam_role" "github_actions_role"` on line 7, but referenced `aws_iam_role.github_actions.name` and `.arn` on lines 34 & 39.
+  2. **JSON String Key Typo (Not caught by `terraform validate`):** Wrote `"token.actions.githubusercontent.com:aub" = "sts.amazonaws.com"` (`:aub` instead of `:aud` for Audience). Because it is inside a JSON string, `terraform validate` allows it, but AWS STS rejects OIDC logins at runtime.
+  3. **GitHub Secret Name Typo in `deploy.yml`:** Wrote `role-to-assume: ${{ secrets.AES_ROLE_ARN }}` (`AES` instead of `AWS`).
+* **Fix:**
+  Aligned the resource name to `"github_actions"`, corrected `:aub` to `:aud`, and fixed `secrets.AWS_ROLE_ARN` in `deploy.yml`.
+
+---
+
+## Issue #08 — `Error: Could not assume role with OIDC: Not authorized to perform sts:AssumeRoleWithWebIdentity` (GitHub's New `@NumericID` `sub` Format)
+* **Stage:** `.github/workflows/deploy.yml` (`Configure AWS Credentials via OIDC`)
+* **Symptom:**
+  When `CD Deploy Pipeline` ran on `main`, AWS STS rejected the OIDC authentication request:
+  ```text
+  Error: Could not assume role with OIDC: Not authorized to perform sts:AssumeRoleWithWebIdentity
+  ```
+* **Root Cause:**
+  1. For newly created repositories, GitHub updated the OIDC `sub` (subject) claim format to embed immutable numeric user and repository IDs using `@` (`repo:Leospe24@<user_id>/opsticket-practice@<repo_id>:ref:refs/heads/main`) to prevent repository name-recycling attacks.
+  2. Because our IAM Role Trust Policy in `terraform-bootstrap/oidc.tf` used `"repo:Leospe24/opsticket-practice:*"` (without accounting for the `@<numeric_id>` suffixes), AWS IAM's `StringLike` check failed to match the token's `sub` claim.
+* **Fix:**
+  1. Updated `StringLike` in [`terraform-bootstrap/oidc.tf`](../../terraform-bootstrap/oidc.tf) to include `*` wildcards after the owner and repository names (`"repo:Leospe24*/opsticket-practice*:*"`), which matches both classic and `@numeric_id` OIDC `sub` claims automatically.
+  2. Ran `terraform apply -auto-approve` inside `terraform-bootstrap/`. Because the IAM Role Trust Policy lives in AWS (not GitHub), clicking **Re-run all jobs** in GitHub Actions immediately succeeded (Green ✅) even before pushing the updated `oidc.tf` file to GitHub!
+
+---
+
+## Issue #09 — Pull Request Blocked with `This branch is out-of-date with the base branch`
+* **Stage:** Merging a follow-up PR on GitHub when `Require branches to be up to date before merging` is enabled
+* **Symptom:**
+  GitHub displayed:
+  ```text
+  This branch is out-of-date with the base branch. Merge the latest changes from main into this branch.
+  ```
+  and kept the **Merge pull request** button locked.
+* **Root Cause:**
+  When a previous PR is merged on GitHub, `main` receives a new merge commit on GitHub. If a new commit is pushed from a local branch that hadn't pulled the latest `main`, the branch is behind `main`. Because **☑ Require branches to be up to date before merging** is enabled in Branch Protection, GitHub requires the PR branch to sync with `main` and re-run CI checks before merging.
+* **Fix:**
+  Clicked the **"Update branch"** button directly in the GitHub PR UI (which merges the latest `main` into the PR branch and re-triggers the 4 CI checks).
