@@ -1,0 +1,81 @@
+name: CD Deploy Pipeline
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Choose Terraform Action to Run"
+        required: true
+        default: "plan"
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      # Initialize Terraform
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: terraform init
+
+      # CHOICE 1: Runs automatically on push to main OR when you select "plan"
+      - name: Terraform Plan
+        if: github.event_name == 'push' || inputs.action == 'plan'
+        working-directory: ./terraform
+        run: terraform plan
+
+      # CHOICE 2: Runs when you select "apply"
+      - name: Phase 1 - Create Empty ECR Repositories
+        if: inputs.action == 'apply'
+        working-directory: ./terraform
+        run: terraform apply -target=aws_ecr_repository.backend -target=aws_ecr_repository.frontend -auto-approve
+
+      - name: Phase 2 - Login to ECR
+        if: inputs.action == 'apply'
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Phase 2 - Build and Push Docker Images to ECR
+        if: inputs.action == 'apply'
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build -t $REGISTRY/opsticket-backend:v1 ./backend
+          docker push $REGISTRY/opsticket-backend:v1
+
+          docker build -t $REGISTRY/opsticket-frontend:v1 ./frontend
+          docker push $REGISTRY/opsticket-frontend:v1
+
+      - name: Phase 3 - Terraform Apply Full Infrastructure
+        if: inputs.action == 'apply'
+        working-directory: ./terraform
+        run: terraform apply -auto-approve
+
+      # CHOICE 3: Runs when you select "destroy"
+      - name: Terraform Destroy Infrastructure
+        if: inputs.action == 'destroy'
+        working-directory: ./terraform
+        run: terraform destroy -auto-approve
